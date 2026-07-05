@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: myledger
+  servlet:
+    multipart:
+      # Receipt uploads. Keep in sync with any reverse-proxy body-size limit.
+      max-file-size: 10MB
+      max-request-size: 12MB
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/myledger}
+    username: ${DB_USER:myledger}
+    password: ${DB_PASSWORD:myledger}
+  jpa:
+    hibernate:
+      # Flyway owns the schema; JPA only validates entities against it, never mutates it.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+  forward-headers-strategy: framework   # trust proxy (Cloudflare Tunnel / nginx) headers
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+myledger:
+  security:
+    # Any non-empty passphrase; hashed to a 256-bit HMAC key. Override in every non-dev environment.
+    jwt-secret: ${JWT_SECRET:dev-only-change-me-please-use-a-long-random-secret}
+    access-token-ttl-minutes: ${ACCESS_TTL_MINUTES:15}
+    refresh-token-ttl-days: ${REFRESH_TTL_DAYS:14}
+    # Set true behind HTTPS (production) so the refresh cookie is Secure-flagged.
+    cookie-secure: ${COOKIE_SECURE:false}
+  cors:
+    # Comma-separated allowed origins for the SPA during dev. Empty in prod (same-origin).
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  bootstrap:
+    # One-time owner seed. Change the password immediately after first login.
+    owner-email: ${OWNER_EMAIL:owner@myledger.local}
+    owner-password: ${OWNER_PASSWORD:changeme-owner}
+  storage:
+    # Disk location for uploaded receipts/attachments. Mounted as a volume in Docker.
+    dir: ${FILES_DIR:/data/files}
+  finance:
+    # Month a financial year starts. 4 = April (Indian FY, e.g. FY 2026-27). Use 1 for calendar year.
+    fy-start-month: ${FY_START_MONTH:4}
+
+logging:
+  level:
+    org.springframework.security: INFO

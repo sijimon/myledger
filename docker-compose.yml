@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-myledger}
+      POSTGRES_USER: ${DB_USER:-myledger}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-myledger}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    # Postgres is NOT published to the host — reachable only on the internal network.
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-myledger} -d ${DB_NAME:-myledger}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-myledger}
+      DB_USER: ${DB_USER:-myledger}
+      DB_PASSWORD: ${DB_PASSWORD:-myledger}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-please-use-a-long-random-secret}
+      OWNER_EMAIL: ${OWNER_EMAIL:-owner@myledger.local}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-changeme-owner}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    volumes:
+      - files_data:/data/files
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      # The only publicly exposed port. Point Cloudflare Tunnel at this.
+      - "${WEB_PORT:-8088}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  files_data:
