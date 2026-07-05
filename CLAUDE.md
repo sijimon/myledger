@@ -75,6 +75,12 @@ V5 categories-per-project · V6 fund requests · V7 project currency.
 `CORS_ORIGINS` (empty in prod; set to the Vite origin for dev), `FY_START_MONTH` (default 4 = April, Indian FY),
 `WEB_PORT` (8088), `FILES_DIR` (/data/files volume).
 
+## Deploy
+Production runs on Linux Mint via Docker Compose + a Cloudflare Tunnel (no open ports).
+Full guide: `DEPLOY.md`. Overlay: `docker-compose.prod.yml` (adds a `cloudflared` service
+using `CLOUDFLARE_TUNNEL_TOKEN`; tunnel public hostname → `http://frontend:80`). Set
+`COOKIE_SECURE=true` in prod. Backups: `scripts/backup.sh` (DB dump + files volume, cron).
+
 ## Working with the owner
 - The owner (sijimonr@gmail.com) actively tests in-browser and creates real accounts/data.
   **Never delete rows that aren't clearly your own test artifacts.** Clean up only what you created.

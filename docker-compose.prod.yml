@@ -1,0 +1,18 @@
+# Production overlay — adds a Cloudflare Tunnel so the app is reachable over the internet
+# with no open inbound ports. Use together with the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# cloudflared joins the same network and reaches the frontend at http://frontend:80,
+# so you do NOT need to port-forward on your router. Configure the tunnel's public
+# hostname (in the Cloudflare dashboard) to point at the service URL  http://frontend:80
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
