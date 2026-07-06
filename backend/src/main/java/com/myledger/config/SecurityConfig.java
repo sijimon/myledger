@@ -70,6 +70,7 @@ public class SecurityConfig {
                         // Owner-only surfaces.
                         .requestMatchers("/api/contractors/**").hasAuthority(OWNER)
                         .requestMatchers("/api/users/**").hasAuthority(OWNER)
+                        .requestMatchers("/api/roles/**").hasAuthority(OWNER)
                         // Expenses (all methods) + dashboard summary + finance years are
                         // authenticated; the controllers/services enforce tab access, ownership,
                         // and project-assignment scoping for contractors.

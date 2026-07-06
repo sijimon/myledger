@@ -140,6 +140,12 @@ export const approveFundRequest = (id) => api(`/api/fund-requests/${id}/approve`
 export const rejectFundRequest = (id) => api(`/api/fund-requests/${id}/reject`, { method: 'POST' });
 export const markFundPaid = (id) => api(`/api/fund-requests/${id}/mark-paid`, { method: 'POST' });
 
+// Roles (custom tab presets)
+export const getRoles = () => api('/api/roles');
+export const createRole = (payload) => api('/api/roles', { method: 'POST', body: payload });
+export const updateRole = (id, payload) => api(`/api/roles/${id}`, { method: 'PUT', body: payload });
+export const deleteRole = (id) => api(`/api/roles/${id}`, { method: 'DELETE' });
+
 // User management
 export const getUsers = () => api('/api/users');
 export const createUser = (payload) => api('/api/users', { method: 'POST', body: payload });

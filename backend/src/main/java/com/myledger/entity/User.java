@@ -42,6 +42,10 @@ public class User {
     @Column(nullable = false)
     private String tabs = "FUND_REQUESTS";
 
+    /** Assigned role (tab preset) for contractor-class users; null for owners/unassigned. */
+    @Column(name = "role_id")
+    private Long roleId;
+
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private OffsetDateTime createdAt;
 

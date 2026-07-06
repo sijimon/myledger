@@ -1,57 +1,49 @@
 import { useEffect, useState } from 'react';
 import {
   getUsers, createUser, updateUser, resetUserPassword, deleteUser,
-  getProjects, getUserProjects, setUserProjects,
+  getProjects, getUserProjects, setUserProjects, getRoles,
 } from '../shared/api';
 import { useAuth } from '../shared/AuthContext';
 import { TAB_OPTIONS } from '../shared/contractorTabs';
 
-const ROLES = [
-  { value: 'ROLE_OWNER', label: 'Owner' },
-  { value: 'ROLE_CONTRACTOR', label: 'Contractor' },
-];
+const OWNER = 'OWNER';
+const tabLabel = (key) => TAB_OPTIONS.find((t) => t.key === key)?.label || key;
 
 export default function Users() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('ROLE_CONTRACTOR');
-  const [tabs, setTabs] = useState(['FUND_REQUESTS']);
+  const [roleSel, setRoleSel] = useState(OWNER); // 'OWNER' or a role id (string)
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Project-assignment editor for a contractor
-  const [assignFor, setAssignFor] = useState(null); // { id, email }
+  // Project-assignment editor
+  const [assignFor, setAssignFor] = useState(null);
   const [allProjects, setAllProjects] = useState([]);
   const [assigned, setAssigned] = useState([]);
 
-  const load = () => getUsers().then(setUsers);
+  const load = () => Promise.all([getUsers(), getRoles()]).then(([u, r]) => { setUsers(u); setRoles(r); });
   const run = async (fn) => { setError(null); try { await fn(); } catch (e) { setError(e.message || 'Something went wrong'); } };
-
   useEffect(() => { run(load); }, []);
 
-  const toggleNew = (key) =>
-    setTabs((t) => (t.includes(key) ? t.filter((k) => k !== key) : [...t, key]));
+  // Build the payload for a chosen role selection.
+  const rolePayload = (sel) => (sel === OWNER ? { role: 'ROLE_OWNER' } : { roleId: Number(sel) });
 
   const add = async (e) => {
     e.preventDefault();
     setSaving(true);
     await run(async () => {
-      await createUser({ email, password, role, tabs: role === 'ROLE_CONTRACTOR' ? tabs : undefined });
-      setEmail(''); setPassword(''); setRole('ROLE_CONTRACTOR'); setTabs(['FUND_REQUESTS']);
+      await createUser({ email, password, ...rolePayload(roleSel) });
+      setEmail(''); setPassword(''); setRoleSel(OWNER);
       await load();
     });
     setSaving(false);
   };
 
-  const changeRole = (u, newRole) => run(async () => { await updateUser(u.id, { role: newRole }); await load(); });
+  const changeRole = (u, sel) => run(async () => { await updateUser(u.id, rolePayload(sel)); await load(); });
   const toggleEnabled = (u) => run(async () => { await updateUser(u.id, { enabled: !u.enabled }); await load(); });
-  const toggleTab = (u, key) => run(async () => {
-    const next = u.tabs.includes(key) ? u.tabs.filter((k) => k !== key) : [...u.tabs, key];
-    await updateUser(u.id, { tabs: next });
-    await load();
-  });
   const remove = (u) => run(async () => {
     if (!window.confirm(`Delete user ${u.email}?`)) return;
     await deleteUser(u.id); await load();
@@ -69,12 +61,11 @@ export default function Users() {
     setAssigned(ids);
     setAssignFor({ id: u.id, email: u.email });
   });
-  const toggleAssigned = (pid) =>
-    setAssigned((a) => (a.includes(pid) ? a.filter((x) => x !== pid) : [...a, pid]));
-  const saveAssign = () => run(async () => {
-    await setUserProjects(assignFor.id, assigned);
-    setAssignFor(null);
-  });
+  const toggleAssigned = (pid) => setAssigned((a) => (a.includes(pid) ? a.filter((x) => x !== pid) : [...a, pid]));
+  const saveAssign = () => run(async () => { await setUserProjects(assignFor.id, assigned); setAssignFor(null); });
+
+  // Current dropdown value for a user row.
+  const rowRoleValue = (u) => (u.role === 'ROLE_OWNER' ? OWNER : (u.roleId != null ? String(u.roleId) : ''));
 
   return (
     <>
@@ -93,23 +84,11 @@ export default function Users() {
         </label>
         <label>
           Role
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+          <select value={roleSel} onChange={(e) => setRoleSel(e.target.value)}>
+            <option value={OWNER}>Owner (full access)</option>
+            {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </label>
-        {role === 'ROLE_CONTRACTOR' && (
-          <label>
-            Visible tabs
-            <div className="tab-check-row">
-              {TAB_OPTIONS.map((t) => (
-                <label key={t.key} className="chk">
-                  <input type="checkbox" checked={tabs.includes(t.key)} onChange={() => toggleNew(t.key)} />
-                  {t.label}
-                </label>
-              ))}
-            </div>
-          </label>
-        )}
         <div className="span-2">
           <button type="submit" disabled={saving}>{saving ? 'Adding…' : 'Add user'}</button>
         </div>
@@ -118,36 +97,30 @@ export default function Users() {
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>Email</th><th>Role</th><th>Visible tabs</th><th>Status</th><th></th></tr>
+            <tr><th>Email</th><th>Role</th><th>Sees</th><th>Status</th><th></th></tr>
           </thead>
           <tbody>
             {users.map((u) => {
               const self = u.id === me.userId;
-              const contractor = u.role === 'ROLE_CONTRACTOR';
+              const owner = u.role === 'ROLE_OWNER';
               return (
                 <tr key={u.id} className={u.enabled ? '' : 'archived'}>
                   <td>{u.email}{self && <span className="badge" style={{ marginLeft: '0.5rem' }}>you</span>}</td>
                   <td>
-                    <select value={u.role} disabled={self} onChange={(e) => changeRole(u, e.target.value)}>
-                      {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    <select value={rowRoleValue(u)} disabled={self} onChange={(e) => changeRole(u, e.target.value)}>
+                      {rowRoleValue(u) === '' && <option value="">— pick a role —</option>}
+                      <option value={OWNER}>Owner</option>
+                      {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
                   </td>
                   <td>
-                    {contractor ? (
-                      <div className="tab-chip-row">
-                        {TAB_OPTIONS.map((t) => (
-                          <button key={t.key} type="button"
-                                  className={`tab-chip${u.tabs.includes(t.key) ? ' on' : ''}`}
-                                  onClick={() => toggleTab(u, t.key)}>
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    ) : <span className="muted">All</span>}
+                    {owner ? <span className="muted">Everything</span>
+                      : (u.tabs.length === 0 ? <span className="muted">—</span>
+                        : <span className="tab-chip-row">{u.tabs.map((k) => <span key={k} className="tab-chip on">{tabLabel(k)}</span>)}</span>)}
                   </td>
                   <td>{u.enabled ? 'Active' : 'Disabled'}</td>
                   <td className="row-actions">
-                    {contractor && <button className="link" onClick={() => openAssign(u)}>Projects</button>}
+                    {!owner && <button className="link" onClick={() => openAssign(u)}>Projects</button>}
                     <button className="link" onClick={() => resetPw(u)}>Reset password</button>
                     {!self && (
                       <>
@@ -162,6 +135,7 @@ export default function Users() {
           </tbody>
         </table>
       </div>
+
       {assignFor && (
         <section className="panel">
           <div className="section-head">
@@ -171,7 +145,7 @@ export default function Users() {
               <button className="link" onClick={() => setAssignFor(null)}>Cancel</button>
             </div>
           </div>
-          <p className="muted">The contractor can add expenses only for the projects checked here (needs the Expenses tab).</p>
+          <p className="muted">The user can add expenses only for the projects checked here (needs the Expenses tab in their role).</p>
           <div className="tab-check-row">
             {allProjects.length === 0 && <span className="muted">No active projects.</span>}
             {allProjects.map((p) => (
@@ -185,9 +159,8 @@ export default function Users() {
       )}
 
       <p className="muted">
-        <strong>Owner</strong> sees everything. <strong>Contractor</strong> sees only the tabs you enable.
-        With the <strong>Expenses</strong> tab + assigned projects, a contractor can add their own expenses
-        for those projects (Dashboard is read-only).
+        <strong>Owner</strong> sees everything. Other roles see only the tabs defined for that role
+        (create/edit roles under <strong>Manage → Roles</strong>) and are scoped to their own data and assigned projects.
       </p>
     </>
   );

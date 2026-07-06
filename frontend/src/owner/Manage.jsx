@@ -3,8 +3,10 @@ import {
   getProjects, createProject, updateProject, deleteProject,
   getCategories, createCategory, updateCategory, deleteCategory,
   getPhases, createPhase, updatePhase, deletePhase,
+  getRoles, createRole, updateRole, deleteRole,
 } from '../shared/api';
 import { CURRENCIES } from '../shared/format';
+import { TAB_OPTIONS } from '../shared/contractorTabs';
 
 function useError() {
   const [error, setError] = useState(null);
@@ -169,6 +171,70 @@ function PhasesPanel({ projectId }) {
   );
 }
 
+function RolesPanel() {
+  const [roles, setRoles] = useState([]);
+  const [name, setName] = useState('');
+  const [tabs, setTabs] = useState([]);
+  const { error, run } = useError();
+
+  const load = () => getRoles().then(setRoles);
+  useEffect(() => { run(load); }, []);
+
+  const toggleNew = (key) => setTabs((t) => (t.includes(key) ? t.filter((k) => k !== key) : [...t, key]));
+  const add = (e) => {
+    e.preventDefault();
+    run(async () => { await createRole({ name, tabs }); setName(''); setTabs([]); await load(); });
+  };
+  const toggleRoleTab = (r, key) => run(async () => {
+    const next = r.tabs.includes(key) ? r.tabs.filter((k) => k !== key) : [...r.tabs, key];
+    await updateRole(r.id, { name: r.name, tabs: next });
+    await load();
+  });
+  const remove = (r) => run(async () => { await deleteRole(r.id); await load(); });
+
+  return (
+    <section className="panel">
+      <h3>Roles</h3>
+      <p className="muted">A role is a named set of tabs. Assign a role to a user (in the Users tab) to control what they see.</p>
+      {error && <p className="error">{error}</p>}
+      <form className="inline-form" onSubmit={add}>
+        <input placeholder="New role name (e.g. Accountant)" value={name} required onChange={(e) => setName(e.target.value)} />
+        <div className="tab-check-row">
+          {TAB_OPTIONS.map((t) => (
+            <label key={t.key} className="chk">
+              <input type="checkbox" checked={tabs.includes(t.key)} onChange={() => toggleNew(t.key)} />
+              {t.label}
+            </label>
+          ))}
+        </div>
+        <button type="submit">Add role</button>
+      </form>
+      <ul className="manage-list">
+        {roles.map((r) => (
+          <li key={r.id}>
+            <span className="ml-name">{r.name}</span>
+            {r.builtIn && <span className="badge">built-in</span>}
+            <span className="tab-chip-row">
+              {TAB_OPTIONS.map((t) => (
+                <button key={t.key} type="button"
+                        className={`tab-chip${r.tabs.includes(t.key) ? ' on' : ''}`}
+                        onClick={() => toggleRoleTab(r, t.key)}>
+                  {t.label}
+                </button>
+              ))}
+            </span>
+            {!r.builtIn && (
+              <span className="ml-actions">
+                <button className="link danger" onClick={() => remove(r)}>Delete</button>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function Manage() {
   const [projects, setProjects] = useState([]);
   const [selectedPid, setSelectedPid] = useState('');
@@ -208,6 +274,8 @@ export default function Manage() {
         <CategoriesPanel projectId={selectedPid} />
         <PhasesPanel projectId={selectedPid} />
       </div>
+
+      <RolesPanel />
     </>
   );
 }
